@@ -1,0 +1,188 @@
+<?php
+include('config.php'); // Database connection
+
+// Check if it's an update request (e.g., if an event ID is passed in)
+$isUpdate = isset($_GET['event_id']);
+$event = [];
+
+// Initialize message variable
+$message = '';
+
+// If the form is submitted
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $event_name = $_POST['event_name'];
+    $event_description = $_POST['event_description'];
+    $event_date = $_POST['event_date'];
+    $event_time = $_POST['event_time'];
+    $event_location = $_POST['event_location'];
+    $event_type = $_POST['event_type'];
+    $resource_person = $_POST['resource_person'];
+    $prerequisites = $_POST['prerequisites'];
+
+    // Use prepared statements to prevent SQL injection
+    if ($isUpdate) {
+        // Update the existing event
+        $event_id = $_POST['event_id'];
+        $updateSql = "UPDATE events SET name = ?, description = ?, date = ?, time = ?, location = ?, type = ?, resource_person = ?, prerequisites = ? WHERE id = ?";
+        
+        if ($stmt = mysqli_prepare($conn, $updateSql)) {
+            mysqli_stmt_bind_param($stmt, "ssssssssi", $event_name, $event_description, $event_date, $event_time, $event_location, $event_type, $resource_person, $prerequisites, $event_id);
+            
+            if (mysqli_stmt_execute($stmt)) {
+                $message = "Event updated successfully!";
+            } else {
+                $message = "Error updating event: " . mysqli_error($conn);
+            }
+        } else {
+            $message = "Error preparing the statement: " . mysqli_error($conn);
+        }
+    } else {
+        // Add a new event
+        $insertSql = "INSERT INTO events (name, description, date, time, location, type, resource_person, prerequisites) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        if ($stmt = mysqli_prepare($conn, $insertSql)) {
+            mysqli_stmt_bind_param($stmt, "ssssssss", $event_name, $event_description, $event_date, $event_time, $event_location, $event_type, $resource_person, $prerequisites);
+            
+            if (mysqli_stmt_execute($stmt)) {
+                $message = "Event added successfully!";
+            } else {
+                $message = "Error adding event: " . mysqli_error($conn);
+            }
+        } else {
+            $message = "Error preparing the statement: " . mysqli_error($conn);
+        }
+    }
+}
+
+// If it's an update request, get the event details for pre-populating the form
+if ($isUpdate) {
+    $event_id = $_GET['event_id'];
+    $getEventSql = "SELECT * FROM events WHERE id = ?";
+    
+    if ($stmt = mysqli_prepare($conn, $getEventSql)) {
+        mysqli_stmt_bind_param($stmt, "i", $event_id);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $event = mysqli_fetch_assoc($result);
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $isUpdate ? 'Update Event' : 'Add Event'; ?></title>
+    <link rel="stylesheet" href="../assets/css/styles.css"> <!-- Link to external CSS -->
+    <style>
+        /* Your custom styles */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+
+        .card {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 500px;
+        }
+
+        .card h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .card form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card form label {
+            margin-bottom: 5px;
+        }
+
+        .card form input, .card form textarea, .card form select {
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .card form input[type="submit"] {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .card form input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+
+        .card .message {
+            color: green;
+            text-align: center;
+        }
+
+        .card .error {
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1><?php echo $isUpdate ? 'Update Event' : 'Add New Event'; ?></h1>
+        
+        <!-- Display success or error message -->
+        <?php if (!empty($message)) { ?>
+            <div class="<?php echo strpos($message, 'Error') === false ? 'message' : 'error'; ?>">
+                <?php echo $message; ?>
+            </div>
+        <?php } ?>
+
+        <!-- Event Form -->
+        <form method="POST">
+            <label for="event_name">Event Name:</label>
+            <input type="text" id="event_name" name="event_name" value="<?php echo $isUpdate ? htmlspecialchars($event['name']) : ''; ?>" required>
+
+            <label for="event_description">Event Description:</label>
+            <textarea id="event_description" name="event_description" required><?php echo $isUpdate ? htmlspecialchars($event['description']) : ''; ?></textarea>
+
+            <label for="event_date">Event Date:</label>
+            <input type="date" id="event_date" name="event_date" value="<?php echo $isUpdate ? $event['date'] : ''; ?>" required>
+
+            <label for="event_time">Event Time:</label>
+            <input type="time" id="event_time" name="event_time" value="<?php echo $isUpdate ? $event['time'] : ''; ?>" required>
+
+            <label for="event_location">Event Location:</label>
+            <input type="text" id="event_location" name="event_location" value="<?php echo $isUpdate ? htmlspecialchars($event['location']) : ''; ?>" required>
+
+            <label for="event_type">Event Type:</label>
+            <select id="event_type" name="event_type" required>
+                <option value="Technical" <?php echo $isUpdate && $event['type'] == 'Technical' ? 'selected' : ''; ?>>Technical</option>
+                <option value="Non-technical" <?php echo $isUpdate && $event['type'] == 'Non-technical' ? 'selected' : ''; ?>>Non-technical</option>
+            </select>
+
+            <label for="resource_person">Resource Person:</label>
+            <input type="text" id="resource_person" name="resource_person" value="<?php echo $isUpdate ? htmlspecialchars($event['resource_person']) : ''; ?>" required>
+
+            <label for="prerequisites">Prerequisites:</label>
+            <textarea id="prerequisites" name="prerequisites" required><?php echo $isUpdate ? htmlspecialchars($event['prerequisites']) : ''; ?></textarea>
+
+            <?php if ($isUpdate) { ?>
+                <input type="hidden" name="event_id" value="<?php echo $event['id']; ?>">
+            <?php } ?>
+
+            <input type="submit" value="<?php echo $isUpdate ? 'Update Event' : 'Add Event'; ?>">
+        </form>
+    </div>
+</body>
+</html>
